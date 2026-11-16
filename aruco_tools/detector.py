@@ -23,8 +23,12 @@ class ArucoMarkerDetector:
     def detect(self, image: np.ndarray) -> DetectionResult:
         corners, ids, rejected = self._detector.detectMarkers(image)
         ids = [] if ids is None else ids.flatten()
-        markers = [MarkerDetection(int(i), c.reshape(4, 2), self._estimate_pose(c.reshape(4, 2)))
-                   for c, i in zip(corners, ids)]
+        markers = []
+        for c, i in zip(corners, ids):
+            c = c.reshape(4, 2)
+            pose = self._estimate_pose(c)
+            rmse = self.reprojection_rmse(c, pose) if pose else None
+            markers.append(MarkerDetection(int(i), c, pose, rmse))
         return DetectionResult(markers, [r.reshape(4, 2) for r in rejected])
 
     def _estimate_pose(self, corners: np.ndarray) -> Pose | None:
@@ -35,6 +39,13 @@ class ArucoMarkerDetector:
         ok, rvec, tvec = cv2.solvePnP(obj, corners, self.camera.K, self.camera.dist,
                                       flags=cv2.SOLVEPNP_IPPE_SQUARE)
         return Pose(rvec, tvec) if ok else None
+
+    def reprojection_rmse(self, corners: np.ndarray, pose: Pose) -> float:
+        """Root-mean-square distance in pixels between the detected corners and the marker's
+        3D corners projected with `pose`. Needs no ground truth, so it works on real images too."""
+        projected, _ = cv2.projectPoints(marker_corners_3d(self.marker_length_m), pose.rvec, pose.tvec,
+                                         self.camera.K, self.camera.dist)
+        return float(np.sqrt(np.mean(np.sum((projected.reshape(4, 2) - corners) ** 2, axis=1))))
 
     def draw(self, image: np.ndarray, result: DetectionResult, show_rejected: bool = False) -> np.ndarray:
         out = image.copy()

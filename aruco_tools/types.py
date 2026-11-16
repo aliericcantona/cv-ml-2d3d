@@ -102,6 +102,7 @@ class MarkerDetection:
     marker_id: int
     corners: np.ndarray         # 4x2 pixel coords: TL, TR, BR, BL
     pose: Pose | None = None    # set when intrinsics + marker length are known
+    reproj_rmse_px: float | None = None  # how well `pose` explains `corners` (set with pose)
 
 
 @dataclass(frozen=True)

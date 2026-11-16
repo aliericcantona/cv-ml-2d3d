@@ -22,6 +22,7 @@ class FrameScore:
     status: Status
     rot_err_deg: float | None = None
     pos_err_mm: float | None = None
+    reproj_rmse_px: float | None = None
 
     def describe(self) -> str:
         if self.status is Status.SKIPPED:
@@ -29,6 +30,8 @@ class FrameScore:
         if self.status is Status.MISSED:
             return "NOT DETECTED"
         text = f"rot err {self.rot_err_deg:.2f} deg   pos err {self.pos_err_mm:.1f} mm"
+        if self.reproj_rmse_px is not None:
+            text += f"   reproj {self.reproj_rmse_px:.2f} px"
         return text + "   WRONG POSE" if self.status is Status.WRONG else text
 
 
@@ -45,6 +48,7 @@ class DetectionStats:
         self.wrong = 0       # detected, but pose badly off
         self.rot_errors_deg: list[float] = []
         self.pos_errors_mm: list[float] = []
+        self.reproj_rmse_px: list[float] = []
 
     def add(self, detection: MarkerDetection | None, truth: Pose, visible: bool = True) -> FrameScore:
         """Score one frame and add it to the totals."""
@@ -56,12 +60,15 @@ class DetectionStats:
             return FrameScore(Status.MISSED)
 
         rot, pos = detection.pose.error_to(truth)
+        rmse = detection.reproj_rmse_px
         self.rot_errors_deg.append(rot)
         self.pos_errors_mm.append(pos)
+        if rmse is not None:
+            self.reproj_rmse_px.append(rmse)
         if rot > self.wrong_rot_deg or pos > self.wrong_pos_mm:
             self.wrong += 1
-            return FrameScore(Status.WRONG, rot, pos)
-        return FrameScore(Status.GOOD, rot, pos)
+            return FrameScore(Status.WRONG, rot, pos, rmse)
+        return FrameScore(Status.GOOD, rot, pos, rmse)
 
     @property
     def detected(self) -> int:
@@ -86,9 +93,14 @@ class DetectionStats:
     def pos_percentile(self, q: float) -> float | None:
         return float(np.percentile(self.pos_errors_mm, q)) if self.detected else None
 
+    def reproj_percentile(self, q: float) -> float | None:
+        return float(np.percentile(self.reproj_rmse_px, q)) if self.reproj_rmse_px else None
+
     def summary(self) -> str:
         text = f"good {self.good}/{self.frames} ({100 * self.rate:.0f}%)   wrong {self.wrong}"
         if self.detected:
             text += (f"   median rot {self.rot_percentile(50):.2f} deg"
                      f"   pos {self.pos_percentile(50):.1f} mm")
+        if self.reproj_rmse_px:
+            text += f"   reproj {self.reproj_percentile(50):.2f} px"
         return text

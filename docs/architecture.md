@@ -35,7 +35,7 @@ All classes live in the `aruco_tools/` package.
 | `marker_corners_3d` | The marker's 4 corner positions in 3D. The one definition used by detection, visibility checks and drawing. |
 | `Pose` | Where the marker is relative to the camera: a rotation and a translation in metres. `error_to(other)` returns the rotation error (degrees) and position error (mm) between two poses. |
 | `MarkerCard` | A generated marker image plus its real-world size, with or without a white margin. |
-| `MarkerDetection` | One detected marker: its id, its 4 corner pixels, and its pose. |
+| `MarkerDetection` | One detected marker: its id, its 4 corner pixels, its pose, and the pose's reprojection RMSE in pixels. |
 | `DetectionResult` | Everything found in one image: the detected markers plus rejected candidate shapes. |
 
 ### Making markers (`generator.py`)
@@ -54,6 +54,11 @@ lets the detector separate the marker's black edge from the background.
 3. **Refine corners** to sub-pixel accuracy.
 4. **Estimate the pose:** from the 4 corners, the known marker size and the camera
    model, OpenCV's `solvePnP` (IPPE_SQUARE method) computes the rotation and position.
+5. **Check the fit:** `reprojection_rmse()` projects the marker's 3D corners back into the
+   image with that pose and returns the root-mean-square distance (pixels) to the detected
+   corners. It needs no ground truth, so it is the quality number you would also have on a
+   real camera. A low RMSE means the pose explains the corners well; it does not prove the
+   corners themselves are in the right place.
 
 `draw()` draws the outline and the 3D axes on the image.
 
@@ -74,10 +79,10 @@ lets the detector separate the marker's black edge from the background.
 - Frames where the marker is not fully visible are **skipped** (not scored).
 - **good:** detected, and the pose is within 5° and 20 mm of the truth.
 - **wrong:** detected, but the pose is worse than that.
-- Reports median, 95th percentile and worst errors.
+- Reports median, 95th percentile and worst errors, plus the same for the reprojection RMSE.
 
 `add()` returns a **`FrameScore`**: the frame's status (`SKIPPED`, `MISSED`, `GOOD`, `WRONG`)
-and its errors. `describe()` turns it into the one-line text shown in the demo.
+its errors and reprojection RMSE. `describe()` turns it into the one-line text shown in the demo.
 
 ### Running a setup (`scenario.py`)
 
