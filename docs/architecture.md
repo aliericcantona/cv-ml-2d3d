@@ -58,7 +58,10 @@ lets the detector separate the marker's black edge from the background.
    image with that pose and returns the root-mean-square distance (pixels) to the detected
    corners. It needs no ground truth, so it is the quality number you would also have on a
    real camera. A low RMSE means the pose explains the corners well; it does not prove the
-   corners themselves are in the right place.
+   pose is right. With only 4 corners and a 6-DoF pose, PnP fits them almost exactly, so the
+   RMSE stays tiny even when the pose is off: on `grass` it is unrelated to the true rotation
+   error (rank correlation -0.13). Use the rotation/position error against ground truth as the
+   real metric; the RMSE only flags grossly misplaced corners.
 
 `draw()` draws the outline and the 3D axes on the image.
 

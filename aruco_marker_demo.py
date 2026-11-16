@@ -1,14 +1,15 @@
 """Camera orbits an ArUco marker on the ground; shows detected pose error vs ground truth.
 
-    uv run aruco_marker_demo.py [grass|noise|checker|white|dark|path/to/image.jpg] [--no-border] [--cad bunny,armadillo] [--cad-every 3] [--overlay] [--rmse-plot [rmse.png]] [--save out.mp4]
+    uv run aruco_marker_demo.py [grass|noise|checker|white|dark|path/to/image.jpg] [--no-border] [--cad bunny,armadillo] [--cad-every 3] [--overlay] [--error-plot [errors.png]] [--save out.mp4]
 
 Right panel: the CAD part drawn on the marker at the *detected* pose, seen from the camera.
 --cad takes model names from assets/ (bunny, armadillo, knot), STL files or folders, comma-separated;
 with several models the part changes every --cad-every seconds. --cad alone, or no --cad,
 runs every STL in assets/.
 --overlay also draws it on top of the camera image (augmented-reality style).
---rmse-plot adds a third panel with a live chart of the reprojection RMSE and labels the RMSE on
-the marker; with a file name it also saves the chart of the whole run when you quit.
+--error-plot (alias --rmse-plot) adds a third panel with live charts of the rotation error,
+position error (both against ground truth) and reprojection RMSE, and labels the errors on the
+marker; with a file name it also saves the charts of the whole run when you quit.
 --save records every shown frame (all panels) to an MP4 (30 fps) until you quit.
 
 Press q or ESC to quit.
@@ -20,7 +21,7 @@ import cv2
 import numpy as np
 
 from aruco_tools.cad import MeshRenderer, load_stl, place_on_marker
-from aruco_tools.plot import RmsePlot
+from aruco_tools.plot import ErrorPlot
 from aruco_tools.scenario import Frame, Scenario
 
 WINDOW = "ArUco demo"
@@ -32,13 +33,14 @@ def put_lines(img: np.ndarray, lines: list[str]) -> None:
         cv2.putText(img, text, (10, 30 + 30 * i), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 255), 2)
 
 
-def label_rmse(view: np.ndarray, frame: Frame) -> None:
-    """Write the frame's reprojection RMSE just above the marker."""
-    if frame.detection is None or frame.score.reproj_rmse_px is None:
+def label_errors(view: np.ndarray, frame: Frame) -> None:
+    """Write the frame's pose error just above the marker."""
+    s = frame.score
+    if frame.detection is None or s.rot_err_deg is None:
         return
     x, y = frame.detection.corners.min(axis=0).astype(int)
     org = (int(x), max(20, int(y) - 12))
-    text = f"RMSE {frame.score.reproj_rmse_px:.2f} px"
+    text = f"rot {s.rot_err_deg:.2f} deg  pos {s.pos_err_mm:.1f} mm"
     cv2.putText(view, text, org, cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 0), 4, cv2.LINE_AA)
     cv2.putText(view, text, org, cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2, cv2.LINE_AA)
 
@@ -72,13 +74,13 @@ def stl_files(paths: list[str]) -> list[Path]:
 
 
 def draw(frame: Frame, scenario: Scenario, cad: MeshRenderer, overlay: bool,
-         plot: RmsePlot | None = None, cad_name: str = "") -> np.ndarray:
+         plot: ErrorPlot | None = None, cad_name: str = "") -> np.ndarray:
     """Camera view, CAD panel and (with `plot`) the RMSE chart, side by side."""
     view = scenario.detector.draw(frame.image, frame.result)
     if overlay and frame.pose:
         view = cad.render(frame.pose, image=view)
     if plot is not None:
-        label_rmse(view, frame)
+        label_errors(view, frame)
     put_lines(view, [frame.score.describe(), scenario.stats.summary()])
 
     # right panel: zoomed in on the part, looking from the same direction as the camera
@@ -110,16 +112,17 @@ class Recorder:
 
 def main(background: str = "grass", border: bool = True, cad_paths: list[str] | str | None = None,
          cad_every: float = 3.0,
-         overlay: bool = False, save_path: str | None = None, rmse_plot: str | None = None) -> None:
-    """`rmse_plot`: None = off, "" = live chart only, a file name = live chart + saved PNG."""
+         overlay: bool = False, save_path: str | None = None, error_plot: str | None = None) -> None:
+    """`error_plot`: None = off, "" = live charts only, a file name = live charts + saved PNG."""
     scenario = Scenario(background, border)
     files = stl_files([cad_paths] if isinstance(cad_paths, str) else cad_paths or [])
     models = [(f.stem, MeshRenderer(scenario.camera, place_on_marker(load_stl(f)))) for f in files]
 
-    plot = RmsePlot() if rmse_plot is not None else None
+    plot = (ErrorPlot(scenario.stats.wrong_rot_deg, scenario.stats.wrong_pos_mm)
+            if error_plot is not None else None)
     n_panels = 3 if plot is not None else 2
     cv2.namedWindow(WINDOW, cv2.WINDOW_NORMAL)  # resizable: panels side by side
-    width = 1800 if plot is not None else 1600
+    width = 2160 if plot is not None else 1600  # 3 panels: 2160 x 540
     cv2.resizeWindow(WINDOW, width, round(width * scenario.camera.height / (n_panels * scenario.camera.width)))
     video = Recorder(save_path) if save_path else None
 
@@ -137,9 +140,9 @@ def main(background: str = "grass", border: bool = True, cad_paths: list[str] | 
 
     if video:
         video.close()
-    if plot is not None and rmse_plot:
-        plot.save(rmse_plot)
-        print(f"saved {rmse_plot}")
+    if plot is not None and error_plot:
+        plot.save(error_plot)
+        print(f"saved {error_plot}")
     cv2.destroyAllWindows()
     print(scenario.stats.summary())
 
@@ -154,9 +157,10 @@ if __name__ == "__main__":
     parser.add_argument("--cad-every", type=float, default=3.0, metavar="SECONDS",
                         help="with several models, switch to the next one every SECONDS")
     parser.add_argument("--overlay", action="store_true", help="also draw the part on the camera image")
-    parser.add_argument("--rmse-plot", nargs="?", const="", metavar="PATH.png",
-                        help="live reprojection-RMSE chart as a third panel; with a path, also save it on quit")
+    parser.add_argument("--error-plot", "--rmse-plot", dest="error_plot", nargs="?", const="",
+                        metavar="PATH.png",
+                        help="live rotation/position error and RMSE charts as a third panel; with a path, also save them on quit")
     parser.add_argument("--save", metavar="PATH.mp4", help="record the window to an MP4 file")
     args = parser.parse_args()
     main(args.background, border=not args.no_border, cad_paths=args.cad, cad_every=args.cad_every, overlay=args.overlay,
-         save_path=args.save, rmse_plot=args.rmse_plot)
+         save_path=args.save, error_plot=args.error_plot)
