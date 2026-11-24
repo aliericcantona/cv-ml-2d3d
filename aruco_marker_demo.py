@@ -3,7 +3,7 @@
     uv run aruco_marker_demo.py [grass|noise|checker|white|dark|path/to/image.jpg] [--no-border] [--cad bunny,armadillo] [--cad-every 3] [--overlay] [--error-plot [errors.png]] [--save out.mp4]
 
 Right panel: the CAD part drawn on the marker at the *detected* pose, seen from the camera.
---cad takes model names from assets/ (bunny, armadillo, knot), STL files or folders, comma-separated;
+--cad takes model names from assets/ (bunny, armadillo, knot), STL/OBJ files or folders, comma-separated;
 with several models the part changes every --cad-every seconds. --cad alone, or no --cad,
 runs every STL in assets/.
 --overlay also draws it on top of the camera image (augmented-reality style).
@@ -20,7 +20,7 @@ from pathlib import Path
 import cv2
 import numpy as np
 
-from aruco_tools.cad import MeshRenderer, load_stl, place_on_marker
+from aruco_tools.cad import MeshRenderer, load_mesh, place_on_marker
 from aruco_tools.plot import ErrorPlot
 from aruco_tools.scenario import Frame, Scenario
 
@@ -46,11 +46,12 @@ def label_errors(view: np.ndarray, frame: Frame) -> None:
 
 
 MODEL_DIRS = (Path("assets"),)  # where bare model names and "every STL" come from
+MESH_SUFFIXES = (".stl", ".obj")
 
 
-def stl_files(paths: list[str]) -> list[Path]:
-    """Turn --cad arguments into STL files, in the order given. Each argument may hold several
-    comma-separated items; an item is a folder (all .stl inside, sorted), a file, or a bare
+def mesh_files(paths: list[str]) -> list[Path]:
+    """Turn --cad arguments into STL/OBJ files, in the order given. Each argument may hold several
+    comma-separated items; an item is a folder (all .stl/.obj inside, sorted), a file, or a bare
     model name looked up in MODEL_DIRS ("bunny" -> assets/bunny.stl). No arguments = every
     STL in MODEL_DIRS."""
     if not paths:
@@ -59,7 +60,7 @@ def stl_files(paths: list[str]) -> list[Path]:
     for item in (s.strip() for arg in paths for s in arg.split(",") if s.strip()):
         p = Path(item).expanduser()
         if p.is_dir():
-            files += sorted(p.glob("*.stl"))
+            files += sorted(f for f in p.iterdir() if f.suffix.lower() in MESH_SUFFIXES)
         elif p.is_file():
             files.append(p)
         else:
@@ -69,7 +70,7 @@ def stl_files(paths: list[str]) -> list[Path]:
                 raise SystemExit(f"--cad: no file or model named {item!r} (known models: {', '.join(known)})")
             files.append(found[0])
     if not files:
-        raise SystemExit(f"no .stl files found in {paths}")
+        raise SystemExit(f"no .stl or .obj files found in {paths}")
     return files
 
 
@@ -115,8 +116,8 @@ def main(background: str = "grass", border: bool = True, cad_paths: list[str] | 
          overlay: bool = False, save_path: str | None = None, error_plot: str | None = None) -> None:
     """`error_plot`: None = off, "" = live charts only, a file name = live charts + saved PNG."""
     scenario = Scenario(background, border)
-    files = stl_files([cad_paths] if isinstance(cad_paths, str) else cad_paths or [])
-    models = [(f.stem, MeshRenderer(scenario.camera, place_on_marker(load_stl(f)))) for f in files]
+    files = mesh_files([cad_paths] if isinstance(cad_paths, str) else cad_paths or [])
+    models = [(f.stem, MeshRenderer(scenario.camera, place_on_marker(load_mesh(f)))) for f in files]
 
     plot = (ErrorPlot(scenario.stats.wrong_rot_deg, scenario.stats.wrong_pos_mm)
             if error_plot is not None else None)
@@ -153,7 +154,7 @@ if __name__ == "__main__":
                         help="grass, noise, checker, white, dark, or an image path")
     parser.add_argument("--no-border", action="store_true", help="marker without the white border")
     parser.add_argument("--cad", nargs="*", default=[], metavar="MODELS",
-                        help="comma-separated model names (bunny,armadillo), STL files or folders; alone = every STL")
+                        help="comma-separated model names (bunny,armadillo), STL/OBJ files or folders; alone = every STL")
     parser.add_argument("--cad-every", type=float, default=3.0, metavar="SECONDS",
                         help="with several models, switch to the next one every SECONDS")
     parser.add_argument("--overlay", action="store_true", help="also draw the part on the camera image")

@@ -1,4 +1,4 @@
-"""Load an STL part and draw it from a camera pose with OpenCV (no 3D library needed)."""
+"""Load an STL or OBJ part and draw it from a camera pose with OpenCV (no 3D library needed)."""
 from __future__ import annotations
 
 import re
@@ -21,6 +21,31 @@ def load_stl(path: str | Path, scale: float = 0.001) -> np.ndarray:
         record = np.dtype([("normal", "<f4", 3), ("v", "<f4", (3, 3)), ("attr", "<u2")])
         tris = np.frombuffer(data, record, count=n, offset=84)["v"].astype(float)
     return tris * scale
+
+
+def load_obj(path: str | Path) -> np.ndarray:
+    """Triangles of a Wavefront OBJ as an (n, 3, 3) array, in the file's own units.
+    Reads only `v` and `f` lines; polygons are split into triangle fans."""
+    verts, faces = [], []
+    for line in Path(path).expanduser().read_text(errors="ignore").splitlines():
+        if line.startswith("v "):
+            verts.append([float(x) for x in line.split()[1:4]])
+        elif line.startswith("f "):
+            idx = [int(tok.split("/")[0]) for tok in line.split()[1:]]  # "f 1/2/3" -> 1
+            idx = [i - 1 if i > 0 else len(verts) + i for i in idx]      # 1-based or negative
+            faces += [(idx[0], idx[k], idx[k + 1]) for k in range(1, len(idx) - 1)]
+    return np.asarray(verts, float)[np.asarray(faces, int)]
+
+
+def load_mesh(path: str | Path, size_m: float = 0.15) -> np.ndarray:
+    """Triangles in metres from an STL (assumed millimetres) or an OBJ. OBJ files have no
+    standard unit (MCB parts are about 1 unit across), so they are scaled so their longest
+    side is `size_m`."""
+    if Path(path).suffix.lower() == ".obj":
+        tris = load_obj(path)
+        pts = tris.reshape(-1, 3)
+        return tris * (size_m / np.ptp(pts, axis=0).max())
+    return load_stl(path)
 
 
 def place_on_marker(tris: np.ndarray) -> np.ndarray:

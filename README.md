@@ -7,7 +7,7 @@ How it works, class by class: [docs/architecture.md](docs/architecture.md)
 
 ## Requirements
 
-Python 3.12+ with `opencv-python` and `numpy`. `open3d` is only needed for `make_models.py`.
+Python 3.12+ with `opencv-python` and `numpy`. `open3d` is only needed for `make_models.py`; `cadquery` only for `make_parts.py`.
 
 ## Run
 
@@ -29,6 +29,9 @@ uv run aruco_sweep.py noise --no-border --blur 5 --distances 1,2 --out sweep_har
 
 # export bunny / armadillo / knot STL files to assets/ (once)
 uv run make_models.py
+
+# build spur gear / mounting bracket / bearing housing STL files in assets/ (once)
+uv run make_parts.py
 ```
 
 ### Demo options
@@ -59,6 +62,7 @@ aruco_marker_demo.py    live demo
 aruco_benchmark.py      benchmark table
 aruco_sweep.py          error vs viewing angle and distance, plotted
 make_models.py          exports test models to assets/
+make_parts.py           builds mechanical CAD parts (gear, bracket, housing) into assets/
 assets/                 STL models
 docs/                   documentation
 ```

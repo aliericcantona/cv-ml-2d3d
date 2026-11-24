@@ -4,6 +4,7 @@ __pycache__/
 *.egg-info/
 .venv/
 venv/
+uv.lock
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
@@ -15,3 +16,7 @@ venv/
 
 # Outputs
 *.mp4
+*.png
+
+# Generated models: rebuild with make_models.py and make_parts.py
+assets/*.stl

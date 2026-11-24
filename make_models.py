@@ -3,7 +3,7 @@
     uv run make_models.py            # writes assets/bunny.stl, assets/armadillo.stl, assets/knot.stl
     uv run aruco_marker_demo.py --cad assets/bunny.stl
 
-Open3D downloads each model the first time. Every model is reduced to ~4000 triangles (so the
+Open3D downloads each model the first time, into ~/.cache/open3d_data. Every model is reduced to ~4000 triangles (so the
 demo stays fast), turned to stand upright on the marker, and scaled to SIZE_MM across, in mm.
 """
 from pathlib import Path
@@ -14,6 +14,7 @@ import open3d as o3d
 SIZE_MM = 150         # longest side of each model; the marker is 187.5 mm
 TRIANGLES = 4000
 OUT_DIR = Path("assets")
+DATA_ROOT = Path.home() / ".cache" / "open3d_data"  # Open3D's download cache (default is ~/open3d_data)
 
 Y_UP_TO_Z_UP = np.array([[1, 0, 0], [0, 0, -1], [0, 1, 0]], float)  # these scans are y-up
 
@@ -25,7 +26,7 @@ MODELS = {  # name: (Open3D dataset, rotation to stand it on the marker)
 
 
 def export(name: str, dataset, rotation: np.ndarray) -> Path:
-    mesh = o3d.io.read_triangle_mesh(dataset().path)
+    mesh = o3d.io.read_triangle_mesh(dataset(data_root=str(DATA_ROOT)).path)
     mesh = mesh.simplify_quadric_decimation(TRIANGLES)
 
     v = np.asarray(mesh.vertices) @ rotation.T
