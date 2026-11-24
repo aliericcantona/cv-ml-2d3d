@@ -1,0 +1,131 @@
+<!doctype html>
+<!-- Embedding report template, filled by embedding/html_report.py (string.Template).
+     The placeholder list and rules are in that file's docstring: any placeholder written here
+     would be filled in too. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>$title</title>
+<style>
+  :root {
+    --bg: #f7f7f5; --panel: #ffffff; --text: #1d1d1f; --muted: #6b6b70; --line: #e3e3e0;
+    --accent: #2f6fdb; --bar: #9bbcf2; --good: #2e8b57; --bad: #c0392b;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #161618; --panel: #1f1f22; --text: #ececee; --muted: #9a9aa1; --line: #333338;
+      --accent: #7aa7ff; --bar: #34558f; --good: #5fc48a; --bad: #ff7b6e;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+         font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+  main { max-width: 1200px; margin: 0 auto; padding: 28px 16px 48px; }
+  h1 { font-size: 24px; margin: 0 0 4px; }
+  h2 { font-size: 17px; margin: 32px 0 10px; }
+  .muted { color: var(--muted); }
+  .settings { font-size: 13px; margin-top: 6px; }
+  .settings span { display: inline-block; margin-right: 14px; }
+  .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 10px; margin-top: 20px; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; }
+  .card .name { font-size: 12px; color: var(--muted); }
+  .card .value { font-size: 22px; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .card.chance .value { color: var(--muted); }
+  figure { margin: 0; background: #fff; border: 1px solid var(--line); border-radius: 10px; padding: 8px; overflow-x: auto; }
+  figure img { display: block; max-width: 100%; height: auto; margin: 0 auto; cursor: zoom-in; }
+  figure img.full { max-width: none; cursor: zoom-out; }
+  .table-wrap { overflow-x: auto; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; }
+  table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; }
+  th, td { padding: 6px 10px; border-bottom: 1px solid var(--line); text-align: right; white-space: nowrap; }
+  th:first-child, td:first-child, th.text, td.text { text-align: left; }
+  tr:last-child td { border-bottom: none; }
+  th { position: sticky; top: 0; background: var(--panel); cursor: pointer; user-select: none; font-weight: 600; }
+  th:hover { color: var(--accent); }
+  td.bar { position: relative; min-width: 80px; }
+  td.bar::before { content: ""; position: absolute; left: 6px; top: 5px; bottom: 5px;
+                   width: calc((100% - 12px) * var(--v)); background: var(--bar); border-radius: 3px; opacity: .55; }
+  td.bar span { position: relative; }
+  .hint { font-size: 12px; margin: 6px 0 0; }
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 4px 16px; }
+  dl.facts { display: grid; grid-template-columns: max-content 1fr; gap: 0; margin: 0; }
+  dl.facts dt, dl.facts dd { margin: 0; padding: 8px 0; border-bottom: 1px solid var(--line); }
+  dl.facts dt { font-weight: 600; padding-right: 24px; white-space: nowrap; }
+  dl.facts dt:nth-last-of-type(1), dl.facts dd:last-of-type { border-bottom: none; }
+  @media (max-width: 600px) { dl.facts { grid-template-columns: 1fr; }
+    dl.facts dt { border-bottom: none; padding-bottom: 0; } }
+  code { font-size: 12.5px; background: var(--bg); padding: 1px 5px; border-radius: 4px; }
+  .card[title] { cursor: help; }
+  footer { margin-top: 32px; font-size: 12px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>$title</h1>
+  <div class="muted">$subtitle</div>
+
+  <div class="cards">$cards</div>
+  <p class="hint muted">Hover a metric for its definition; full definitions at the bottom.</p>
+
+  <h2>Experiment</h2>
+  <div class="panel"><dl class="facts">$experiment</dl></div>
+
+  <h2>2D projections</h2>
+  <div class="panel" style="margin-bottom:10px"><dl class="facts">$methods</dl></div>
+  <figure><img id="fig" src="$figure" alt="2D projections of the part embeddings, coloured by class"></figure>
+  <p class="hint muted">Click the plot to see it at full size (scroll sideways), click again to fit.</p>
+
+  <h2>Most confused pairs</h2>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th class="text">Class</th><th class="text">Taken for</th><th>Times</th></tr></thead>
+      <tbody>$confused_rows</tbody>
+    </table>
+  </div>
+
+  <h2>Per class</h2>
+  <div class="table-wrap">
+    <table id="classes">
+      <thead><tr>$class_head</tr></thead>
+      <tbody>$class_rows</tbody>
+    </table>
+  </div>
+  <p class="hint muted">Worst first by P@10. Click a column header to sort.</p>
+
+  <h2>Metric definitions</h2>
+  <div class="panel"><dl class="facts">
+    <dt>Query and ranking</dt><dd>Every part is used once as a query. All other parts are ranked by cosine
+      similarity of their part embeddings, most similar first; the query itself is excluded. A result is
+      <i>relevant</i> when it has the same class (MCB folder) as the query. All metrics are averaged over queries.</dd>
+    <dt>P@k (precision at k)</dt><dd>Fraction of the top-k results that are relevant. P@1 asks "is the single
+      closest part from the same class?"; P@10 asks how clean the 10 closest are.</dd>
+    <dt>R@k (Recall@K)</dt><dd>Fraction of queries with <i>at least one</i> relevant result in the top k (the
+      "Recall@K" of metric-learning papers). Useful for lookup, where the right answer only has to appear near the top.</dd>
+    <dt>AP / mAP</dt><dd>Average precision: the precision at the rank of each relevant result, averaged over all
+      relevant results of the query, so it scores the whole ranking. mAP is the mean AP over queries; the strictest number here.</dd>
+    <dt>k-NN accuracy</dt><dd>Leave-one-out classification: predict the majority class of the k nearest parts
+      (ties go to the nearest) and compare with the true class.</dd>
+    <dt>Chance P@k</dt><dd>Expected P@k of a random ranking: 1 / number of classes (with equal class sizes).</dd>
+    <dt>Most confused with</dt><dd>The class a class's parts are most often predicted as by the k-NN classifier.</dd>
+    <dt>Per-class scores</dt><dd>The same metrics averaged only over queries from that class.</dd>
+  </dl></div>
+
+  <footer class="muted">$generated</footer>
+</main>
+<script>
+  document.getElementById("fig").addEventListener("click", e => e.target.classList.toggle("full"));
+  // sort the per-class table by the clicked column (numbers numerically, text alphabetically)
+  document.querySelectorAll("#classes th").forEach((th, col) => {
+    let asc = true;
+    th.addEventListener("click", () => {
+      const body = th.closest("table").tBodies[0];
+      const rows = [...body.rows];
+      const key = r => { const t = r.cells[col].dataset.v ?? r.cells[col].textContent; const n = parseFloat(t); return isNaN(n) ? t : n; };
+      rows.sort((a, b) => { const x = key(a), y = key(b); return (x > y ? 1 : x < y ? -1 : 0) * (asc ? 1 : -1); });
+      asc = !asc;
+      rows.forEach(r => body.appendChild(r));
+    });
+  });
+</script>
+</body>
+</html>

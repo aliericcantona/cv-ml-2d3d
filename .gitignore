@@ -17,6 +17,7 @@ uv.lock
 # Outputs
 *.mp4
 *.png
+*.npz
 
 # Generated models: rebuild with make_models.py and make_parts.py
 assets/*.stl

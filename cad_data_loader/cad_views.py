@@ -50,10 +50,11 @@ def create_view(renderer: MeshRenderer, elev: float, azim: float, label: bool = 
 
 
 def create_views(triangles: np.ndarray, views: int = 4, elev: float = 25, size: int = 320,
-                 fov_deg: float = 40) -> list[np.ndarray]:
-    """`views` BGR images from cameras spaced evenly around the part at the same elevation."""
+                 fov_deg: float = 40, label: bool = True) -> list[np.ndarray]:
+    """`views` BGR images from cameras spaced evenly around the part at the same elevation.
+    Use label=False for images that go into a model (no text drawn on them)."""
     renderer = MeshRenderer(CameraIntrinsics.from_fov(size, size, fov_deg), triangles)
-    return [create_view(renderer, elev, -60 + k * 360 / views) for k in range(views)]
+    return [create_view(renderer, elev, -60 + k * 360 / views, label) for k in range(views)]
 
 
 def tile(images: list[np.ndarray], cols: int = 4, fill: int = 40) -> np.ndarray:
